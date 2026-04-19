@@ -105,6 +105,148 @@ def check_node():
             pass
     return None
 
+def install_nodejs():
+    os_type = detect_os()
+    log(f"正在为 {os_type} 安装 Node.js 22 LTS...")
+
+    if os_type == 'windows':
+        return install_nodejs_windows()
+    elif os_type == 'macos':
+        return install_nodejs_macos()
+    elif os_type == 'linux':
+        return install_nodejs_linux()
+    else:
+        error(f"不支持的平台: {os_type}")
+        return False
+
+def install_nodejs_windows():
+    log("尝试使用 winget 安装 Node.js...")
+    try:
+        result = subprocess.run(
+            ['winget', 'install', '--id', 'OpenJS.NodeJS.LTS', '--silent', '--accept-package-agreements', '--accept-source-agreements'],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode == 0:
+            success("Node.js 安装成功 (winget)")
+            return True
+        else:
+            warn(f"winget 安装失败: {result.stderr}")
+    except FileNotFoundError:
+        warn("winget 不可用")
+    except subprocess.TimeoutExpired:
+        warn("winget 安装超时")
+
+    log("尝试使用官方安装包安装 Node.js...")
+    try:
+        import tempfile
+        import urllib.request
+        installer_url = "https://nodejs.org/dist/v22.14.0/node-v22.14.0-x64.msi"
+        installer_path = Path(tempfile.gettempdir()) / "nodejs-installer.msi"
+
+        log("下载安装包 (约 30MB)...")
+        urllib.request.urlretrieve(installer_url, installer_path)
+        success("下载完成")
+
+        log("静默安装 Node.js...")
+        result = subprocess.run(
+            ['msiexec', '/i', str(installer_path), '/quiet', '/norestart'],
+            capture_output=True, text=True, timeout=300
+        )
+
+        if result.returncode in (0, 3010):
+            success("Node.js 安装成功")
+            installer_path.unlink(missing_ok=True)
+            return True
+        else:
+            error(f"安装失败: {result.stderr}")
+            return False
+    except Exception as e:
+        error(f"安装失败: {e}")
+        return False
+
+def install_nodejs_macos():
+    log("检查 Homebrew...")
+    brew = shutil.which('brew')
+    if not brew:
+        log("Homebrew 未安装，正在安装...")
+        try:
+            subprocess.run(
+                '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+                shell=True, timeout=300, check=True
+            )
+            success("Homebrew 安装成功")
+        except Exception as e:
+            error(f"Homebrew 安装失败: {e}")
+            return False
+
+    log("使用 Homebrew 安装 Node.js LTS...")
+    try:
+        result = subprocess.run(
+            ['brew', 'install', 'node'],
+            capture_output=True, text=True, timeout=600
+        )
+        if result.returncode == 0:
+            success("Node.js 安装成功")
+            return True
+        else:
+            error(f"安装失败: {result.stderr}")
+            return False
+    except Exception as e:
+        error(f"安装失败: {e}")
+        return False
+
+def install_nodejs_linux():
+    log("检测包管理器...")
+    apt = shutil.which('apt-get')
+    yum = shutil.which('yum')
+    dnf = shutil.which('dnf')
+
+    if apt:
+        return install_nodejs_linux_apt()
+    elif yum or dnf:
+        return install_nodejs_linux_yum(dnf or yum)
+    else:
+        error("未找到支持的包管理器 (apt/yum/dnf)")
+        return False
+
+def install_nodejs_linux_apt():
+    log("使用 apt 安装 Node.js 22 LTS...")
+    try:
+        log("添加 NodeSource 仓库...")
+        subprocess.run(
+            'curl -fsSL https://deb.nodesource.com/setup_22.x | bash -',
+            shell=True, timeout=120, check=True
+        )
+        log("安装 Node.js...")
+        subprocess.run(
+            ['apt-get', 'install', '-y', 'nodejs'],
+            capture_output=True, text=True, timeout=300, check=True
+        )
+        success("Node.js 安装成功")
+        return True
+    except Exception as e:
+        error(f"安装失败: {e}")
+        return False
+
+def install_nodejs_linux_yum(pkg_mgr):
+    log(f"使用 {pkg_mgr} 安装 Node.js 22 LTS...")
+    try:
+        log("添加 NodeSource 仓库...")
+        subprocess.run(
+            'curl -fsSL https://rpm.nodesource.com/setup_22.x | bash -',
+            shell=True, timeout=120, check=True
+        )
+        log("安装 Node.js...")
+        subprocess.run(
+            [pkg_mgr, 'install', '-y', 'nodejs'],
+            capture_output=True, text=True, timeout=300, check=True
+        )
+        success("Node.js 安装成功")
+        return True
+    except Exception as e:
+        error(f"安装失败: {e}")
+        return False
+
 def get_powershell_cmd():
     pwsh = shutil.which('pwsh')
     if pwsh:
@@ -439,13 +581,19 @@ def run_action(action):
         if node_version:
             success(f"Node.js 已安装: {node_version}")
         else:
-            warn("Node.js 未安装")
+            warn("Node.js 未安装，正在自动安装...")
             print()
-            info("请先安装 Node.js 22 LTS:")
-            print(f"  {Colors.CYAN}https://nodejs.org/{Colors.NC}")
-            print()
-            cont = input("是否继续? (y/N): ").strip().lower()
-            if cont != 'y':
+            if install_nodejs():
+                node_version = check_node()
+                if node_version:
+                    success(f"Node.js 安装完成: {node_version}")
+                else:
+                    warn("Node.js 安装完成但需要重启终端才能使用")
+                    info("请关闭此程序，重新打开后再试")
+                    return
+            else:
+                error("Node.js 自动安装失败")
+                info("请手动安装 Node.js 22 LTS: https://nodejs.org/")
                 return
 
         install_openclaw()
