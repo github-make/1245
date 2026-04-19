@@ -420,5 +420,11 @@ def main():
         info("输入 python deploy.py help 查看帮助")
         sys.exit(1)
 
+    if is_bundled():
+        input("\n按回车键退出...")
+
+def is_bundled():
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
 if __name__ == '__main__':
     main()
