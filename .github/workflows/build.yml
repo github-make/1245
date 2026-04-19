@@ -35,16 +35,22 @@ jobs:
             artifact: 'OpenClawPostDeploy.exe'
             spec: 'build_windows.spec'
             ext: '.exe'
+            shell: cmd
+            path-sep: '\'
           - name: macOS
             runs-on: macos-latest
             artifact: 'OpenClawPostDeploy'
             spec: 'build_macos.spec'
             ext: ''
+            shell: bash
+            path-sep: '/'
           - name: Linux
             runs-on: ubuntu-latest
             artifact: 'OpenClawPostDeploy'
             spec: 'build_linux.spec'
             ext: ''
+            shell: bash
+            path-sep: '/'
 
     steps:
       - name: Checkout code
@@ -70,20 +76,20 @@ jobs:
 
       - name: Build ${{ matrix.platform.name }} binary
         run: |
-          pyinstaller ${{ matrix.platform.spec }} --workpath build/wtemp --distpath dist\${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
-        shell: cmd
+          pyinstaller ${{ matrix.platform.spec }} --workpath build/wtemp --distpath dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
+        shell: ${{ matrix.platform.shell }}
 
       - name: List build output
         run: |
           echo "Build artifacts:"
-          dir dist\${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
-        shell: cmd
+          ${{ matrix.platform.name == 'Windows' && 'dir' || 'ls -la' }} dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
+        shell: ${{ matrix.platform.shell }}
 
       - name: Upload artifact - ${{ matrix.platform.name }}
         uses: actions/upload-artifact@v4
         with:
           name: OpenClawPostDeploy-${{ matrix.platform.name }}
-          path: dist/${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}/${{ matrix.platform.artifact }}${{ matrix.platform.ext }}
+          path: dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}${{ matrix.platform.path-sep }}${{ matrix.platform.artifact }}${{ matrix.platform.ext }}
           retention-days: 30
 
   release:
