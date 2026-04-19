@@ -1,0 +1,107 @@
+name: Deploy OpenClaw
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/**'
+      - 'scripts/**'
+      - 'config/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - restart
+          - status
+          - health
+
+env:
+  VPS_HOST: ${{ secrets.VPS_HOST }}
+  VPS_USERNAME: ${{ secrets.VPS_USERNAME }}
+  VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+  VPS_PORT: ${{ secrets.VPS_PORT || '22' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ env.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p ${{ env.VPS_PORT }} -H ${{ env.VPS_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy OpenClaw
+        run: |
+          ssh ${{ env.VPS_USERNAME }}@${{ env.VPS_HOST }} -p ${{ env.VPS_PORT }} << 'EOF'
+            set -e
+            
+            echo "===== Starting OpenClaw Deployment ====="
+            echo "Date: $(date)"
+            echo "User: $(whoami)"
+            echo "========================================"
+            
+            # Check if OpenClaw is installed
+            if command -v openclaw &> /dev/null; then
+              echo "OpenClaw already installed: $(openclaw --version)"
+            else
+              echo "Installing OpenClaw..."
+              curl -fsSL https://openclaw.ai/install.sh | bash
+            fi
+            
+            # Run deployment script
+            if [[ -d "~/openclaw-deploy-tool" ]]; then
+              cd ~/openclaw-deploy-tool
+              git pull
+            else
+              git clone https://github.com/YOUR_REPO/openclaw-deploy-tool.git ~/openclaw-deploy-tool
+            fi
+            
+            # Restart service
+            ~/openclaw-deploy-tool/scripts/service.sh restart || true
+            
+            echo "===== Deployment Complete ====="
+          EOF
+
+      - name: Health Check
+        run: |
+          sleep 5
+          ssh ${{ env.VPS_USERNAME }}@${{ env.VPS_HOST }} -p ${{ env.VPS_PORT }} "~/openclaw-deploy-tool/scripts/monitor.sh health" || true
+
+      - name: Status Check
+        if: github.event.inputs.action == 'status'
+        run: |
+          ssh ${{ env.VPS_USERNAME }}@${{ env.VPS_HOST }} -p ${{ env.VPS_PORT }} "openclaw status" || true
+
+  restart:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'restart'
+    
+    steps:
+      - name: Restart Service
+        run: |
+          ssh ${{ env.VPS_USERNAME }}@${{ env.VPS_HOST }} -p ${{ env.VPS_PORT }} << 'EOF'
+            ~/openclaw-deploy-tool/scripts/service.sh restart
+          EOF
+
+  health:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'health'
+    
+    steps:
+      - name: Health Check
+        run: |
+          ssh ${{ env.VPS_USERNAME }}@${{ env.VPS_HOST }} -p ${{ env.VPS_PORT }} << 'EOF'
+            ~/openclaw-deploy-tool/scripts/monitor.sh health
+          EOF
