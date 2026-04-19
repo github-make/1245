@@ -6,6 +6,7 @@ on:
     tags:
       - 'v*'
     paths:
+      - 'deploy.py'
       - 'post-deploy.py'
       - 'build*.py'
       - 'build*.spec'
@@ -13,6 +14,7 @@ on:
   pull_request:
     branches: [main, master]
     paths:
+      - 'deploy.py'
       - 'post-deploy.py'
       - 'build*.py'
       - 'build*.spec'
@@ -53,8 +55,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawPostDeploy-Windows
-          path: dist\windows\OpenClawPostDeploy.exe
+          name: OpenClawDeploy-Windows
+          path: dist\windows\OpenClawDeploy.exe
           retention-days: 30
 
   build-macos:
@@ -84,8 +86,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawPostDeploy-macOS
-          path: dist/macos/OpenClawPostDeploy
+          name: OpenClawDeploy-macOS
+          path: dist/macos/OpenClawDeploy
           retention-days: 30
 
   build-linux:
@@ -115,8 +117,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawPostDeploy-Linux
-          path: dist/linux/OpenClawPostDeploy
+          name: OpenClawDeploy-Linux
+          path: dist/linux/OpenClawDeploy
           retention-days: 30
 
   release:
@@ -134,16 +136,16 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release
-          cp artifacts/OpenClawPostDeploy-Windows/OpenClawPostDeploy.exe release/ || true
-          cp artifacts/OpenClawPostDeploy-macOS/OpenClawPostDeploy release/ || true
-          cp artifacts/OpenClawPostDeploy-Linux/OpenClawPostDeploy release/ || true
+          cp artifacts/OpenClawDeploy-Windows/OpenClawDeploy.exe release/ || true
+          cp artifacts/OpenClawDeploy-macOS/OpenClawDeploy release/ || true
+          cp artifacts/OpenClawDeploy-Linux/OpenClawDeploy release/ || true
           ls -la release/
       - name: Create checksums
         run: |
           cd release
-          sha256sum OpenClawPostDeploy.exe > OpenClawPostDeploy.exe.sha256 || true
-          sha256sum OpenClawPostDeploy-macos > OpenClawPostDeploy-macos.sha256 || true
-          sha256sum OpenClawPostDeploy-linux > OpenClawPostDeploy-linux.sha256 || true
+          sha256sum OpenClawDeploy.exe > OpenClawDeploy.exe.sha256 || true
+          sha256sum OpenClawDeploy-macos > OpenClawDeploy-macos.sha256 || true
+          sha256sum OpenClawDeploy-linux > OpenClawDeploy-linux.sha256 || true
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

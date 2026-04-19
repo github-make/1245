@@ -4,7 +4,7 @@
 block_cipher = None
 
 a = Analysis(
-    ['post-deploy.py'],
+    ['deploy.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -28,7 +28,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='OpenClawPostDeploy.exe',
+    name='OpenClawDeploy.exe',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
