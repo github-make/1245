@@ -371,13 +371,60 @@ def show_usage():
 """)
 
 def main():
-    if len(sys.argv) < 2:
+    if len(sys.argv) >= 2:
+        action = sys.argv[1].lower()
+        run_action(action)
+    elif is_bundled():
+        interactive_menu()
+    else:
         print_banner()
         print(f"{Colors.YELLOW}请指定操作命令，输入 python deploy.py help 查看帮助{Colors.NC}\n")
         sys.exit(1)
 
-    action = sys.argv[1].lower()
+    if is_bundled():
+        input("\n按回车键退出...")
 
+def is_bundled():
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+def interactive_menu():
+    print_banner()
+    while True:
+        print(f"\n{Colors.CYAN}{'='*45}")
+        print("       请选择操作")
+        print(f"{'='*45}{Colors.NC}")
+        print(f"  {Colors.GREEN}1.{Colors.NC} 一键部署 OpenClaw")
+        print(f"  {Colors.GREEN}2.{Colors.NC} 查看租户列表")
+        print(f"  {Colors.GREEN}3.{Colors.NC} 添加租户")
+        print(f"  {Colors.GREEN}4.{Colors.NC} 删除租户")
+        print(f"  {Colors.GREEN}5.{Colors.NC} 更新租户状态")
+        print(f"  {Colors.GREEN}6.{Colors.NC} 查看租户详情")
+        print(f"  {Colors.RED}0.{Colors.NC} 退出")
+        print()
+
+        choice = input("请输入选项 [0-6]: ").strip()
+
+        action_map = {
+            '1': 'deploy',
+            '2': 'list',
+            '3': 'add',
+            '4': 'remove',
+            '5': 'update',
+            '6': 'details',
+            '0': 'exit'
+        }
+
+        action = action_map.get(choice)
+        if not action:
+            warn("无效选项，请重新输入")
+            continue
+
+        if action == 'exit':
+            break
+
+        run_action(action)
+
+def run_action(action):
     if action == 'help':
         show_usage()
     elif action == 'deploy':
@@ -399,7 +446,7 @@ def main():
             print()
             cont = input("是否继续? (y/N): ").strip().lower()
             if cont != 'y':
-                sys.exit(0)
+                return
 
         install_openclaw()
         verify_installation()
@@ -418,13 +465,6 @@ def main():
     else:
         error(f"未知命令: {action}")
         info("输入 python deploy.py help 查看帮助")
-        sys.exit(1)
-
-    if is_bundled():
-        input("\n按回车键退出...")
-
-def is_bundled():
-    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
 
 if __name__ == '__main__':
     main()
