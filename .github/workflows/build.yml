@@ -23,93 +23,114 @@ env:
   PYTHON_VERSION: '3.11'
 
 jobs:
-  build:
-    name: Build ${{ matrix.platform.name }}
-    runs-on: ${{ matrix.platform.runs-on }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - name: Windows
-            runs-on: windows-latest
-            artifact: 'OpenClawPostDeploy.exe'
-            spec: 'build_windows.spec'
-            ext: '.exe'
-            shell: cmd
-            path-sep: '\'
-          - name: macOS
-            runs-on: macos-latest
-            artifact: 'OpenClawPostDeploy'
-            spec: 'build_macos.spec'
-            ext: ''
-            shell: bash
-            path-sep: '/'
-          - name: Linux
-            runs-on: ubuntu-latest
-            artifact: 'OpenClawPostDeploy'
-            spec: 'build_linux.spec'
-            ext: ''
-            shell: bash
-            path-sep: '/'
-
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml', '**/requirements*.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyinstaller
-
-      - name: Build ${{ matrix.platform.name }} binary
-        run: |
-          pyinstaller ${{ matrix.platform.spec }} --workpath build/wtemp --distpath dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
-        shell: ${{ matrix.platform.shell }}
-
+        shell: cmd
+      - name: Build Windows binary
+        run: pyinstaller build_windows.spec --workpath build/wtemp --distpath dist\windows
+        shell: cmd
       - name: List build output
-        run: |
-          echo "Build artifacts:"
-          ${{ matrix.platform.name == 'Windows' && 'dir' || 'ls -la' }} dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}
-        shell: ${{ matrix.platform.shell }}
-
-      - name: Upload artifact - ${{ matrix.platform.name }}
+        run: dir dist\windows
+        shell: cmd
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OpenClawPostDeploy-${{ matrix.platform.name }}
-          path: dist${{ matrix.platform.path-sep }}${{ matrix.platform.name == 'Windows' && 'windows' || matrix.platform.name == 'macOS' && 'macos' || 'linux' }}${{ matrix.platform.path-sep }}${{ matrix.platform.artifact }}${{ matrix.platform.ext }}
+          name: OpenClawPostDeploy-Windows
+          path: dist\windows\OpenClawPostDeploy.exe
+          retention-days: 30
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+      - name: Build macOS binary
+        run: pyinstaller build_macos.spec --workpath build/wtemp --distpath dist/macos
+      - name: List build output
+        run: ls -la dist/macos/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClawPostDeploy-macOS
+          path: dist/macos/OpenClawPostDeploy
+          retention-days: 30
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+      - name: Build Linux binary
+        run: pyinstaller build_linux.spec --workpath build/wtemp --distpath dist/linux
+      - name: List build output
+        run: ls -la dist/linux/
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClawPostDeploy-Linux
+          path: dist/linux/OpenClawPostDeploy
           retention-days: 30
 
   release:
     name: Create Release
-    needs: build
+    needs: [build-windows, build-macos, build-linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Display structure of downloaded files
-        run: ls -la artifacts/
-
       - name: Prepare release files
         run: |
           mkdir -p release
@@ -117,21 +138,18 @@ jobs:
           cp artifacts/OpenClawPostDeploy-macOS/OpenClawPostDeploy release/ || true
           cp artifacts/OpenClawPostDeploy-Linux/OpenClawPostDeploy release/ || true
           ls -la release/
-
       - name: Create checksums
         run: |
           cd release
-          if [ -f OpenClawPostDeploy.exe ]; then sha256sum OpenClawPostDeploy.exe > OpenClawPostDeploy.exe.sha256; fi
-          if [ -f OpenClawPostDeploy ]; then sha256sum OpenClawPostDeploy > OpenClawPostDeploy-macos.sha256; fi
-          sha256sum OpenClawPostDeploy > OpenClawPostDeploy-linux.sha256
-
+          sha256sum OpenClawPostDeploy.exe > OpenClawPostDeploy.exe.sha256 || true
+          sha256sum OpenClawPostDeploy-macos > OpenClawPostDeploy-macos.sha256 || true
+          sha256sum OpenClawPostDeploy-linux > OpenClawPostDeploy-linux.sha256 || true
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
           generate_release_notes: true
-          files: |
-            release/*
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
