@@ -156,6 +156,7 @@ def install_nodejs_windows():
         if result.returncode in (0, 3010):
             success("Node.js 安装成功")
             installer_path.unlink(missing_ok=True)
+            refresh_env_windows()
             return True
         else:
             error(f"安装失败: {result.stderr}")
@@ -163,6 +164,19 @@ def install_nodejs_windows():
     except Exception as e:
         error(f"安装失败: {e}")
         return False
+
+def refresh_env_windows():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SYSTEM\CurrentControlSet\Control\Session Manager\Environment') as key:
+            path, _ = winreg.QueryValueEx(key, 'Path')
+            os.environ['Path'] = path
+            node_paths = [p for p in path.split(';') if 'nodejs' in p.lower()]
+            for p in node_paths:
+                if p not in os.environ.get('Path', ''):
+                    os.environ['Path'] += ';' + p
+    except Exception:
+        pass
 
 def install_nodejs_macos():
     log("检查 Homebrew...")
